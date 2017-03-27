@@ -3,4 +3,20 @@ name = "tcp-lag"
 version = "0.1.0"
 authors = ["Chen Weiguang <chen.weiguang@gmail.com>"]
 
+[[bin]]
+name = "tcp-lag-server"
+path = "src/server-main.rs"
+
+[[bin]]
+name = "tcp-lag-client"
+path = "src/client-main.rs"
+
 [dependencies]
+error-chain = "0.10"
+log = "0.3"
+log4rs = "0.6"
+serde = "0.9"
+serde_derive = "0.9"
+structopt = "0.0"
+structopt-derive = "0.0"
+toml = "0.3"
