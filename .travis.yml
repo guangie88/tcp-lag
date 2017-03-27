@@ -2,3 +2,6 @@ language: rust
 rust:
     - stable
     - nightly
+script:
+    - cargo build --target=x86_64-unknown-linux-musl --verbose
+    - cargo test --target=x86_64-unknown-linux-musl --verbose

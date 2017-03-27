@@ -15,6 +15,8 @@ extern crate toml;
 
 use std::fs::File;
 use std::io::{self, Read, Write};
+use std::net::{SocketAddrV4, TcpListener, TcpStream};
+use std::path::PathBuf;
 use std::process;
 use structopt::StructOpt;
 
@@ -31,8 +33,15 @@ mod errors {
 
 use errors::*;
 
+mod common;
+use common::HANDSHAKE_STR;
+
 #[derive(Serialize, Deserialize, Debug)]
 struct FileConfig {
+    listener_socket: SocketAddrV4,
+    stream_count: usize,
+    stream_start_port: u16,
+    read_dir: PathBuf,
 }
 
 #[derive(StructOpt, Debug)]
@@ -49,7 +58,7 @@ fn run() -> Result<()> {
     let arg_config = ArgConfig::from_args();
 
     let _ = log4rs::init_file(&arg_config.log_config_path, Default::default())
-       .chain_err(|| format!("Unable to initialize log4rs logger with the given config file at '{}'", arg_config.log_config_path))?;
+       .chain_err(|| format!(r#"Unable to initialize log4rs logger with the given config file at "{}""#, arg_config.log_config_path))?;
 
     let config_str = {
         let mut config_file = File::open(&arg_config.config_path)
@@ -67,7 +76,47 @@ fn run() -> Result<()> {
 
     info!("Completed configuration initialization!");
 
-    // write the body here
+    let listener = TcpListener::bind(&config.listener_socket)
+        .chain_err(|| format!(r#"Unable to create TCP listener at "{}""#, config.listener_socket))?;
+
+    info!("Directory to read from: {:?}", config.read_dir);
+    info!(r#"TCP-lag server started listening at "{}"..."#, config.listener_socket);
+
+    let _ = listener.incoming()
+        .any(|stream| {
+            match stream {
+                Ok(mut stream) => {
+                    info!("Stream connected, waiting client to send the handshake preamble...");
+
+                    let mut buf = String::new();
+                    let read_res = stream.read_to_string(&mut buf);
+                    let buf = buf.trim_right();
+
+                    match read_res {
+                        Ok(_) => {
+                            let res = buf == HANDSHAKE_STR;
+
+                            if res {
+                                info!("Found the handshaking preamble!");
+                            } else {
+                                error!("Invalid handshaking preamble, found: {}", buf);
+                            }
+
+                            res
+                        },
+                        Err(e) => {
+                            error!("TCP stream read error: {}", e);
+                            false
+                        },
+                    }
+                },
+
+                Err(e) => {
+                    error!("TCP stream error: {}", e);
+                    false
+                },
+            }
+        });
     
     Ok(())
 }
