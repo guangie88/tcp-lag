@@ -37,6 +37,7 @@ use errors::*;
 struct PingerConfig {
     listen_addrs: Vec<SocketAddr>,
     ping_delay: Duration,
+    summary_period: Duration,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -72,51 +73,66 @@ fn run_pinger(config: &PingerConfig) -> Result<()> {
     // spawn equal # of threads to ping and receive response
     let resp_map = Arc::new(CHashMap::<SocketAddr, CHashMap<String, u64>>::new());
 
-    let ts = config.listen_addrs.iter().map(|listen_addr| {
-        let resp_map = resp_map.clone();
-        let listen_addr = listen_addr.clone();
-        let ping_delay = config.ping_delay.clone();
+    let ts: Vec<_> = config.listen_addrs.iter()
+        .map(|listen_addr| {
+            let resp_map = resp_map.clone();
+            let listen_addr = listen_addr.clone();
+            let ping_delay = config.ping_delay.clone();
 
-        thread::spawn(move || {
-            let resp_map = resp_map;
+            thread::spawn(move || {
+                let resp_map = resp_map;
 
-            loop {
-                let res = TcpStream::connect(&listen_addr)
-                    .and_then(|mut stream| {
-                        let listen_addr = stream.peer_addr()?;
+                loop {
+                    let res = TcpStream::connect(&listen_addr)
+                        .and_then(|mut stream| {
+                            let listen_addr = stream.peer_addr()?;
 
-                        let mut msg = String::new();
-                        let _ = stream.read_to_string(&mut msg)?;
-                        let msg = msg;
+                            let mut msg = String::new();
+                            let _ = stream.read_to_string(&mut msg)?;
+                            let msg = msg;
 
-                        resp_map.upsert(
-                            listen_addr,
+                            resp_map.upsert(
+                                listen_addr,
 
-                            || {
-                                let resp = CHashMap::new();
-                                resp.insert(msg.clone(), 1);
-                                resp
-                            },
+                                || {
+                                    let resp = CHashMap::new();
+                                    resp.insert(msg.clone(), 1);
+                                    resp
+                                },
 
-                            |resp| {
-                                resp.upsert(
-                                    msg.clone(),
-                                    || 1,
-                                    |count| { *count = *count + 1; });
-                            });
-                        
+                                |resp| {
+                                    resp.upsert(
+                                        msg.clone(),
+                                        || 1,
+                                        |count| { *count = *count + 1; });
+                                });
+                            
 
-                        Ok(())
-                    });
+                            Ok(())
+                        });
 
-                if let Err(e) = res {
-                    error!(r#"Unable to connect to listener at "{}": {}"#, listen_addr, e);
+                    if let Err(e) = res {
+                        error!(r#"Unable to connect to listener at "{}": {}"#, listen_addr, e);
+                    }
+
+                    let ping_delay = ping_delay.clone();
+                    thread::sleep(ping_delay);
                 }
-
-                let ping_delay = ping_delay.clone();
-                thread::sleep(ping_delay);
-            }
+            })
         })
+        .collect();
+
+    // to print summary of matches
+    let resp_map = resp_map.clone();
+    let summary_period = config.summary_period.clone();
+
+    thread::spawn(move || {
+        loop {
+            let summary_period = summary_period.clone();
+            thread::sleep(summary_period);
+
+            info!("\n{:?}", resp_map);
+        }
     });
 
     for t in ts.into_iter() {

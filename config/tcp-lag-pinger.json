@@ -1,10 +1,14 @@
 {  
     "op": {
         "Pinger": {
-            "listen_addrs": [ "127.0.0.1:17385" ],
+            "listen_addrs": [ "127.0.0.1:17385", "127.0.0.2:17385" ],
             "ping_delay": {
-                "secs":1,
-                "nanos":0
+                "secs": 0,
+                "nanos": 250000000
+            },
+            "summary_period": {
+                "secs": 5,
+                "nanos": 0 
             }
         }
     }
