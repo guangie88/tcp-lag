@@ -1,0 +1,11 @@
+{  
+    "op": {
+        "Pinger": {
+            "listen_addrs": [ "127.0.0.1:17385" ],
+            "ping_delay": {
+                "secs":1,
+                "nanos":0
+            }
+        }
+    }
+}

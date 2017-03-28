@@ -1,4 +1,0 @@
-listener_socket = "0.0.0.0:17385"
-stream_count = 10
-stream_start_port = 17386
-read_dir = "."
